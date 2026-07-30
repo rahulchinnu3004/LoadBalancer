@@ -1,45 +1,65 @@
 import socket
 import threading
+from queue import Queue
 
 host = '192.168.1.4'
 port = 8001
 
-active_conn = []
+request_queue = Queue()
+
 backend_server =[
     ('127.0.0.1',8004),
     ('127.0.0.1',8005),
     ('127.0.0.1',8006)
 ]
-def listen_active_conn():
-    print("Started listening for active connections..")
-    add_to_active_conn()
 
-def add_to_active_conn():
+
+def listen_active_conn():
+    print("listening for active connections on: "+str(host)+":"+str(port))
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host,port))
     server.listen()
     while True:
         client,addr = server.accept()
-        active_conn.append((client,addr))
-        print("adding to active conn: "+str(addr))
+        print("received connection from: "+str(addr))
+        request_queue.put((client,addr))
+
 
 
 def resolve_reqeust(conn,count):
+    print("waiting for client request from: "+str(conn.getpeername()))
     req = conn.recv(1024).decode()
+    print("received request from client: "+req)
     backend = socket.socket()
+    print("connecting to backend server: "+str(backend_server[count]))
     backend.connect(backend_server[count])
+    print("sending request to backend server: "+str(backend_server[count]))
     backend.sendall(req.encode())
-    resp = backend.recv(1024).decode()
-    conn.sendall(resp.encode())
+    print("waiting for response from backend server: "+str(backend_server[count]))
+    response = b""
+    while True:
+        chunk = backend.recv(4096)
+        if not chunk:
+            break
+        response += chunk
+    print("sending response to client: "+str(conn.getpeername()))
+    conn.sendall(response)
+    print("closing connection with client: "+str(conn.getpeername()))
+    conn.close()
+    backend.close()
 
 def solve():
     count = 0
     while True:
-        for i in active_conn:
+        if not request_queue.empty():
+            print("active connections in queue: "+str(request_queue.qsize()))
+            client, addr = request_queue.get()
             count = count%3
-            resolve_reqeust(i[0],count)
+            resolve_reqeust(client,count)
             count = count+1
-            active_conn.pop(0)
+        else:
+            continue
+
 
 thread1 = threading.Thread(target=listen_active_conn)
 thread1.start()
