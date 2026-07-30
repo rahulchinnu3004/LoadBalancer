@@ -9,12 +9,16 @@ SERVER_NAME = sys.argv[2]
 
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
 
         response = f"Hello from {SERVER_NAME} 1"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Server", SERVER_NAME)
+        self.send_header("Content-length", str(len(response)))
+        self.end_headers()
         self.wfile.write(response.encode())
+
+
 
     # Optional: suppress default request logging
     def log_message(self, format, *args):
